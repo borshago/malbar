@@ -1,0 +1,12 @@
+DATAPATH: /scratch/project_2001351/Daniel/MALBAR/DATA
+SCRIPTPATH: /scratch/project_2001351/Daniel/MALBAR/CODE
+RESULTSPATH: /scratch/project_2001351/Daniel/MALBAR/RESULTS
+CHROM_004UM_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/P37252_1011/outs/filtered_feature_bc_matrix
+CHROM_04UM_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/P37252_1021/outs/filtered_feature_bc_matrix
+CHROM_004UM_RAW_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/P37252_1011/outs/raw_feature_bc_matrix
+CHROM_04UM_RAW_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/P37252_1021/outs/raw_feature_bc_matrix
+CHROM_4UM_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/X3_24_038_GE/outs/per_sample_outs/X3_24_038_GE/count/sample_filtered_feature_bc_matrix
+CHROM_8UM_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/X3_24_039_GE/outs/per_sample_outs/X3_24_039_GE/count/sample_filtered_feature_bc_matrix
+CHROM_4UM_PATH_RAW: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/X3_24_038_GE/outs/multi/count/raw_feature_bc_matrix
+CHROM_8UM_PATH_RAW: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/X3_24_039_GE/outs/multi/count/raw_feature_bc_matrix
+TRANSLATOR_PATH: /scratch/project_2001351/Daniel/MALBAR/DATA/CHROMIUM/translation_3M-3pgex-may-2023.txt
