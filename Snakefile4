@@ -1,0 +1,329 @@
+configfile: "config4.yml"
+DATAPATH=config["DATAPATH"]
+RESULTSPATH=config["RESULTSPATH"]
+SCRIPTPATH=config["SCRIPTPATH"]
+CHROM_004UM_PATH=config["CHROM_004UM_PATH"]
+CHROM_04UM_PATH=config["CHROM_04UM_PATH"]
+CHROM_004UM_RAW_PATH=config["CHROM_004UM_RAW_PATH"]
+CHROM_04UM_RAW_PATH=config["CHROM_04UM_RAW_PATH"]
+CHROM_4UM_PATH=config["CHROM_4UM_PATH"]
+CHROM_8UM_PATH=config["CHROM_8UM_PATH"]
+CHROM_4UM_RAW_PATH=config["CHROM_4UM_RAW_PATH"]
+CHROM_8UM_RAW_PATH=config["CHROM_8UM_RAW_PATH"]
+TRANSLATOR_PATH=config["TRANSLATOR_PATH"]
+
+FASTQS = ["P37252_1015_S2_L005_R1_001.fastq.gz", "P37252_1015_S2_L005_R2_001.fastq.gz", "P37252_1025_S4_L005_R1_001.fastq.gz", "P37252_1025_S4_L005_R2_001.fastq.gz",
+          "P32860_1002_S3_L001_R1_001.fastq.gz", "P32860_1002_S3_L001_R2_001.fastq.gz", "P32860_1004_S5_L001_R1_001.fastq.gz", "P32860_1004_S5_L001_R2_001.fastq.gz"]
+READS = ["P37252_1015_S2_L005_R1_001", "P37252_1015_S2_L005_R2_001", "P37252_1025_S4_L005_R1_001", "P37252_1025_S4_L005_R2_001",
+         "P32860_1002_S3_L001_R1_001", "P32860_1002_S3_L001_R2_001", "P32860_1004_S5_L001_R1_001", "P32860_1004_S5_L001_R2_001"]
+SAMPLES = ["P37252_1015_S2_L005", "P37252_1025_S4_L005", "P32860_1002_S3_L001", "P32860_1004_S5_L001"]
+
+### Rules ###
+
+rule all:
+    """
+    Collect the main outputs of the workflow.
+    """
+    input:
+        #"RESULTS/rulegraph.png",
+        #expand("INTERMEDIATE/FASTQC/{reads}_fastqc.html", reads=READS),
+        #expand("DATA/{reads}_lengths.txt", reads=READS),
+        #expand("DATA/TRIMMED/{samples}_R2_001_trimmed.fastq.gz", samples=SAMPLES),
+        #expand("DATA/TRIMMED/{samples}_R1_001_trimmed.fastq.gz", samples=SAMPLES)
+        #expand("DATA/TRIMMED/{reads}_trimmed_lengths.txt", reads=READS),
+        #expand("{paths}/barcodes_copy.tsv", paths=[CHROM_004UM_PATH, CHROM_04UM_PATH, CHROM_004UM_RAW_PATH, CHROM_04UM_RAW_PATH, CHROM_4UM_PATH, CHROM_8UM_PATH, CHROM_4UM_RAW_PATH, CHROM_8UM_RAW_PATH]),
+        expand("{paths}/emptyDropletBarcodes_100K.tsv", paths=[CHROM_004UM_RAW_PATH, CHROM_04UM_RAW_PATH]),
+        expand("{paths}/rnaToHtoTranslated.csv", paths=[CHROM_004UM_PATH, CHROM_04UM_PATH]),
+        expand("{paths}/rnaToHtoTranslated_randomEmpty100K.csv", paths=[CHROM_004UM_RAW_PATH, CHROM_04UM_RAW_PATH, CHROM_4UM_RAW_PATH, CHROM_8UM_RAW_PATH])
+        #expand("INTERMEDIATE/CITESEQ_COUNT/{samples}/unmapped.csv", samples=SAMPLES)
+        #expand("INTERMEDIATE/CITESEQ_COUNT/{samples}/EMPTYDROPS/unmapped.csv", samples=SAMPLES)
+
+rule fastqc:
+    """
+    Run FastQC on the samples.
+    """
+    conda:
+        "malbar1.yml"
+    input:
+        expand("DATA/FASTQ/{fastqs}", fastqs=FASTQS)
+    output:
+        expand("INTERMEDIATE/FASTQC/{reads}_fastqc.html", reads=READS)
+    shell:
+        """
+        fastqc -o INTERMEDIATE/FASTQC {input}
+        """
+
+rule checkReadLengths:
+    """
+    Make sure that all the reads are of uniform length (important for downstream processing).
+    """
+    conda:
+        "malbar1.yml"
+    input:
+        "DATA/FASTQ/{reads}.fastq.gz"
+    output:
+        "DATA/{reads}_lengths.txt"
+    shell:
+       """
+       zcat DATA/FASTQ/{wildcards.reads}.fastq.gz | awk 'NR%4==2{{print length($0)}}' | uniq -c > DATA/{wildcards.reads}_lengths.txt
+       """
+
+rule lengthTrimBarcodesR2:
+    """
+    Trim the barcode fraction R2 reads to a uniform length (15 bp), containing the barcode sequence.
+    """
+    conda:
+        "malbar1.yml"
+    input:
+        "DATA/FASTQ/{sample}_R2_001.fastq.gz"
+    output:
+        "DATA/TRIMMED/{sample}_R2_001_trimmed.fastq.gz"
+    shell:
+        """
+        fastp -i DATA/FASTQ/{wildcards.sample}_R2_001.fastq.gz -o DATA/TRIMMED/{wildcards.sample}_R2_001_trimmed.fastq.gz -Q -A -G --dont_eval_duplication -b 15 -l 15
+        """
+
+rule lengthTrimBarcodesR1:
+    """
+    Trim the barcode fraction R1 reads to a uniform length (28 bp), containing the 10X barcode and UMI sequences.
+    """
+    conda:
+        "malbar1.yml"
+    input:
+        "DATA/FASTQ/{sample}_R1_001.fastq.gz"
+    output:
+        "DATA/TRIMMED/{sample}_R1_001_trimmed.fastq.gz"
+    shell:
+        """
+        fastp -i DATA/FASTQ/{wildcards.sample}_R1_001.fastq.gz -o DATA/TRIMMED/{wildcards.sample}_R1_001_trimmed.fastq.gz -Q -A -G --dont_eval_duplication -b 28 -l 28
+        """
+
+rule checkTrimmedReadLengths:
+    """
+    Make sure that all the trimmed reads are of uniform length (important for downstream processing).
+    """
+    conda:
+        "malbar1.yml"
+    input:
+        "DATA/TRIMMED/{reads}_trimmed.fastq.gz"
+    output:
+        "DATA/TRIMMED/{reads}_trimmed_lengths.txt"
+    shell:
+       """
+       zcat DATA/TRIMMED/{wildcards.reads}_trimmed.fastq.gz | awk 'NR%4==2{{print length($0)}}' | uniq -c > DATA/TRIMMED/{wildcards.reads}_trimmed_lengths.txt
+       """
+
+rule copyAndUnzipCellBarcodeList:
+    """
+    Copy the cell barcode list and unzip it for CITE-seq-count.
+    """
+    conda:
+        "malbar1.yml"
+    input:
+        expand("{path004}/barcodes.tsv.gz", path004=CHROM_004UM_PATH),
+        expand("{path04}/barcodes.tsv.gz", path04=CHROM_04UM_PATH),
+        expand("{path004}/barcodes.tsv.gz", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/barcodes.tsv.gz", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/barcodes.tsv.gz", path4=CHROM_4UM_PATH),
+        expand("{path8}/barcodes.tsv.gz", path8=CHROM_8UM_PATH),
+        expand("{path4}/barcodes.tsv.gz", path4=CHROM_4UM_RAW_PATH),
+        expand("{path8}/barcodes.tsv.gz", path8=CHROM_8UM_RAW_PATH)
+    output:
+        expand("{path004}/barcodes_copy.tsv", path004=CHROM_004UM_PATH),
+        expand("{path04}/barcodes_copy.tsv", path04=CHROM_04UM_PATH),
+        expand("{path004}/barcodes_copy.tsv", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/barcodes_copy.tsv", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/barcodes_copy.tsv", path4=CHROM_4UM_PATH),
+        expand("{path8}/barcodes_copy.tsv", path8=CHROM_8UM_PATH),
+        expand("{path4}/barcodes_copy.tsv", path4=CHROM_4UM_RAW_PATH),
+        expand("{path8}/barcodes_copy.tsv", path8=CHROM_8UM_RAW_PATH)
+    shell:
+        """
+        cp {input[0]} {config[CHROM_004UM_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_004UM_PATH]}/barcodes_copy.tsv.gz
+        cp {input[1]} {config[CHROM_04UM_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_04UM_PATH]}/barcodes_copy.tsv.gz
+        cp {input[2]} {config[CHROM_004UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_004UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        cp {input[3]} {config[CHROM_04UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_04UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        cp {input[4]} {config[CHROM_4UM_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_4UM_PATH]}/barcodes_copy.tsv.gz
+        cp {input[5]} {config[CHROM_8UM_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_8UM_PATH]}/barcodes_copy.tsv.gz
+        cp {input[6]} {config[CHROM_4UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_4UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        cp {input[7]} {config[CHROM_8UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        gunzip {config[CHROM_8UM_RAW_PATH]}/barcodes_copy.tsv.gz
+        """
+
+rule selectEmptyDroplets:
+    """
+    Select 100000 random empty droplets for tag counting. These will be used to get a sense of the ambient background in the cell suspension.
+    """
+    input:
+        expand("{path004}/barcodes_copy.tsv", path004=CHROM_004UM_PATH),
+        expand("{path04}/barcodes_copy.tsv", path04=CHROM_04UM_PATH),
+        expand("{path4}/barcodes_copy.tsv", path4=CHROM_4UM_PATH),
+        expand("{path8}/barcodes_copy.tsv", path8=CHROM_8UM_PATH),
+        expand("{path004}/barcodes_copy.tsv", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/barcodes_copy.tsv", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/barcodes_copy.tsv", path4=CHROM_4UM_RAW_PATH),
+        expand("{path8}/barcodes_copy.tsv", path8=CHROM_8UM_RAW_PATH)
+        
+    output:
+        expand("{path004}/emptyDropletBarcodes_100K.tsv", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/emptyDropletBarcodes_100K.tsv", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/emptyDropletBarcodes_100K.tsv", path4=CHROM_4UM_RAW_PATH),
+        expand("{path8}/emptyDropletBarcodes_100K.tsv", path8=CHROM_8UM_RAW_PATH)
+    run:
+        import pandas as pd
+        import random
+        
+        # Read in the cell barcodes (non-empty droplets)
+        cells004 = pd.read_csv(input[0], header=None, dtype=str, names=['barcode'])
+        cells04 = pd.read_csv(input[1], header=None, dtype=str, names=['barcode'])
+        cells4 = pd.read_csv(input[2], header=None, dtype=str, names=['barcode'])
+        cells8 = pd.read_csv(input[3], header=None, dtype=str, names=['barcode'])
+        
+        # Read in the empty droplet barcodes
+        empty004 = pd.read_csv(input[4], header=None, dtype=str, names=['barcode'])
+        empty04 = pd.read_csv(input[5], header=None, dtype=str, names=['barcode'])
+        empty4 = pd.read_csv(input[6], header=None, dtype=str, names=['barcode'])
+        empty8 = pd.read_csv(input[7], header=None, dtype=str, names=['barcode'])
+        
+        # Select 200000 random strings
+        random004 = empty004.sample(n=200000)
+        random04 = empty04.sample(n=200000)
+        random4 = empty4.sample(n=200000)
+        random8 = empty8.sample(n=200000)
+        
+        # Make sure the random barcodes don't have any real cell barcodes in them. Select the first 100K.
+        filter004 = random004['barcode'].isin(cells004['barcode'])
+        selectRandom004 = random004[~filter004]
+        selectRandom004 = selectRandom004[0:100000]
+ 
+        filter04 = random04['barcode'].isin(cells04['barcode'])
+        selectRandom04 = random04[~filter04]
+        selectRandom04 = selectRandom04[0:100000]
+
+        filter4 = random04['barcode'].isin(cells4['barcode'])
+        selectRandom4 = random4[~filter4]
+        selectRandom4 = selectRandom4[0:100000]
+        
+        filter8 = random8['barcode'].isin(cells8['barcode'])
+        selectRandom8 = random8[~filter8]
+        selectRandom8 = selectRandom8[0:100000]
+        
+        # Write the empty droplet barcodes to new CSV files
+        selectRandom004.to_csv(output[0], index=False, header=False)
+        selectRandom04.to_csv(output[1], index=False, header=False)
+        selectRandom4.to_csv(output[2], index=False, header=False)
+        selectRandom8.to_csv(output[3], index=False, header=False)
+    
+rule translateBarcodes:
+    """
+    Each barcode bead has two sets of barcode sequences: one set for the mRNA capture oligos, one for the feature capture oligos. These sets are different, so there needs to be a mapping from one to the other.
+    """
+    input:
+        expand("{path004}/barcodes_copy.tsv", path004=CHROM_004UM_PATH),
+        expand("{path04}/barcodes_copy.tsv", path04=CHROM_04UM_PATH),
+        expand("{path4}/barcodes_copy.tsv", path4=CHROM_4UM_PATH),
+        expand("{path8}/barcodes_copy.tsv", path8=CHROM_8UM_PATH)
+    output:
+        expand("{path004}/rnaToHtoTranslated.csv", path004=CHROM_004UM_PATH),
+        expand("{path04}/rnaToHtoTranslated.csv", path04=CHROM_04UM_PATH),
+        expand("{path4}/rnaToHtoTranslated.csv", path4=CHROM_4UM_PATH),
+        expand("{path8}/rnaToHtoTranslated.csv", path8=CHROM_8UM_PATH)
+    run:
+        import pandas as pd
+        for i,j in zip(input, output):
+            translator = pd.read_csv(TRANSLATOR_PATH, header=None, dtype=str, sep="\t")
+            barcodes = pd.read_csv(i, header=None, dtype=str)
+            barcodes = barcodes.map(lambda x: x[:-2]) # Remove the trailing "-1" from the barcodes
+            rna_to_hto_translated = translator[translator[0].isin(barcodes[0])][1] # Keeping the original order is not important here
+            rna_to_hto_translated.to_csv(j, index=False, header=False)
+           
+rule translateEmptyDropletBarcodes:
+    """
+    Translate the cell barcodes of random empty droplets to their corresponding feature barcodes.
+    """
+    input:
+        expand("{path004}/emptyDropletBarcodes_100K.tsv", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/emptyDropletBarcodes_100K.tsv", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/emptyDropletBarcodes_100K.tsv", path4=CHROM_4UM_RAW_PATH),
+        expand("{path8}/emptyDropletBarcodes_100K.tsv", path8=CHROM_8UM_RAW_PATH)
+    output:
+        expand("{path004}/rnaToHtoTranslated_randomEmpty100K.csv", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/rnaToHtoTranslated_randomEmpty100K.csv", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/rnaToHtoTranslated_randomEmpty100K.csv", path04=CHROM_4UM_RAW_PATH),
+        expand("{path8}/rnaToHtoTranslated_randomEmpty100K.csv", path04=CHROM_8UM_RAW_PATH)
+    run:
+        import pandas as pd
+        for i,j in zip(input, output):
+            translator = pd.read_csv(TRANSLATOR_PATH, header=None, dtype=str, sep="\t")
+            barcodes = pd.read_csv(i, header=None, dtype=str)
+            barcodes = barcodes.map(lambda x: x[:-2]) # Remove the trailing "-1" from the barcodes
+            rna_to_hto_translated = translator[translator[0].isin(barcodes[0])][1] # Keeping the original order is not important here
+            rna_to_hto_translated.to_csv(j, index=False, header=False)
+
+rule runCiteseqCount:
+    """
+    Count hashtag oligos per cell barcode.
+    """
+    conda:
+        "malbar2.yml"
+    input:
+        expand("DATA/TRIMMED/{sample}_R1_001_trimmed.fastq.gz", sample=SAMPLES),
+        expand("DATA/TRIMMED/{sample}_R2_001_trimmed.fastq.gz", sample=SAMPLES),
+        "DATA/barcodeTags.csv",
+        expand("{path004}/rnaToHtoTranslated.csv", path004=CHROM_004UM_PATH),
+        expand("{path04}/rnaToHtoTranslated.csv", path04=CHROM_04UM_PATH),
+        expand("{path4}/rnaToHtoTranslated.csv", path4=CHROM_4UM_PATH),
+        expand("{path8}/rnaToHtoTranslated.csv", path8=CHROM_8UM_PATH)
+    output:
+        expand("INTERMEDIATE/CITESEQ_COUNT/{sample}/unmapped.csv", sample=SAMPLES)
+    shell:
+        """
+        CITE-seq-Count -T 1 -R1 {input[0]} -R2 {input[4]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[9]} -cells 11000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[0]} -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[0]}.txt
+        CITE-seq-Count -T 1 -R1 {input[1]} -R2 {input[5]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[10]} -cells 11000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[1]} -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[1]}.txt
+        CITE-seq-Count -T 1 -R1 {input[2]} -R2 {input[6]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[11]} -cells 11000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[2]} -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[2]}.txt
+        CITE-seq-Count -T 1 -R1 {input[3]} -R2 {input[7]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[12]} -cells 11000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[3]} -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[3]}.txt
+        """
+        
+rule runCiteseqCountRndm:
+    """
+    Count hashtag oligos per random empty droplet barcode.
+    """
+    conda:
+        "malbar2.yml"
+    input:
+        expand("DATA/TRIMMED/{sample}_R1_001_trimmed.fastq.gz", sample=SAMPLES),
+        expand("DATA/TRIMMED/{sample}_R2_001_trimmed.fastq.gz", sample=SAMPLES),
+        "DATA/barcodeTags.csv",
+        expand("{path004}/rnaToHtoTranslated_randomEmpty100K.csv", path004=CHROM_004UM_RAW_PATH),
+        expand("{path04}/rnaToHtoTranslated_randomEmpty100K.csv", path04=CHROM_04UM_RAW_PATH),
+        expand("{path4}/rnaToHtoTranslated_randomEmpty100K.csv", path4=CHROM_4UM_RAW_PATH),
+        expand("{path8}/rnaToHtoTranslated_randomEmpty100K.csv", path8=CHROM_8UM_RAW_PATH)
+    output:
+        expand("INTERMEDIATE/CITESEQ_COUNT/{sample}/EMPTYDROPS/unmapped.csv", sample=SAMPLES)
+    shell:
+        """
+        CITE-seq-Count -T 1 -R1 {input[0]} -R2 {input[4]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[5]} -cells 100000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[0]}/EMPTYDROPS -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[0]}.txt
+        CITE-seq-Count -T 1 -R1 {input[1]} -R2 {input[5]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[6]} -cells 100000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[1]}/EMPTYDROPS -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[1]}.txt
+        CITE-seq-Count -T 1 -R1 {input[2]} -R2 {input[6]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[5]} -cells 100000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[2]}/EMPTYDROPS -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[2]}.txt
+        CITE-seq-Count -T 1 -R1 {input[3]} -R2 {input[7]} -t {input[8]} -cbf 1 -cbl 16 -umif 17 -umil 28 -wl {input[6]} -cells 100000 -o INTERMEDIATE/CITESEQ_COUNT/{SAMPLES[3]}/EMPTYDROPS -u unmapped.csv --debug >> LOGS/citeseq_debug_{SAMPLES[3]}.txt
+        """
+
+rule generate_rulegraph:
+    """
+    Generate a rulegraph for the workflow.
+    """
+    conda:
+        "malbar1.yml"
+    output:
+        "RESULTS/rulegraph.png"
+    shell:
+        """
+        snakemake --snakefile Snakefile --rulegraph | dot -Tpng > {output}
+        """
