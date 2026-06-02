@@ -1,0 +1,19 @@
+prefix: /scratch/project_2001351/Daniel/CONDA/ENVS
+name: malbar1
+
+channels:
+- conda-forge
+- bioconda
+- defaults
+
+dependencies:
+- bioconda::fastqc
+- bioconda::snakemake
+- bioconda::fastp
+- conda-forge::python
+- conda-forge::r>=4.3.3 # Set the version to match the one Seurat was built with
+- conda-forge::r-ggplot2
+- conda-forge::r-seurat
+- conda-forge::graphviz
+- conda-forge::r-parallelly>=1.38 # Required for the Seurat package to load
+- conda-forge::r-promises>=1.3.2 # Required for the Seurat package to load
