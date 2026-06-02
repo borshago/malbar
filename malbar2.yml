@@ -1,0 +1,13 @@
+prefix: /scratch/project_2001351/Daniel/CONDA/ENVS
+name: malbar2
+
+channels:
+- conda-forge
+- bioconda
+- defaults
+
+dependencies:
+- bioconda::cite-seq-count
+- bioconda::snakemake
+- conda-forge::python
+- conda-forge::pandas=1.4
